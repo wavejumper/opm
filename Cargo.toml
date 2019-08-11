@@ -7,3 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+pd-external-rs = "0.1.0"
+# reqwest = "0.9.18"
+
+[lib]
+name = "opm"
+crate-type = ["dylib"]
+path = "src/lib.rs"
