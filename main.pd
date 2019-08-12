@@ -1,0 +1,12 @@
+#N canvas 2498 387 450 300 10;
+#X declare -path target/release;
+#X declare -lib target/release/opm;
+#X obj 128 46 declare -path target/release;
+#X obj 129 75 declare -lib target/release/opm;
+#X obj 26 163 loadbang;
+#X obj 29 49 loadbang;
+#X obj 29 81 helloworld;
+#X msg 26 186 \; screenLine4 OPM listening at: \; screenLine5 http://organellem:8080
+\;;
+#X connect 2 0 5 0;
+#X connect 3 0 4 0;

@@ -2,3 +2,4 @@
 pd-lib-builder/
 **/*.rs.bk
 *.o
+*.zip
