@@ -7,16 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pd-external-rs = "0.1.0"
 actix-web = "1.0.5"
 actix-cors = "0.1.0"
-juniper = "0.13.1"
-futures = "0.1.28"
 serde = "1.0.98"
 serde_json = "1.0.40"
 serde_derive = "1.0.98"
 crossbeam-utils = "0.6.6"
-crossbeam = "0.7.2"
 log = { version = "0.4.8", features = ["std", "serde"] }
 
 [lib]

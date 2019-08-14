@@ -1,13 +1,9 @@
-use pd_external_rs;
-
 // https://rust-embedded.github.io/book/interoperability/c-with-rust.html
 // https://github.com/pure-data/externals-howto
 
-use std::ffi::CString;
+use std::os::raw::c_char;
 
-pub fn post(s: &str) {
-    let c_str = CString::new(s).unwrap();
-    unsafe {
-        pd_external_rs::post(c_str.as_ptr());
-    }
+#[link(name="aubio")]
+extern "C" {
+    pub fn post(fmt: *const c_char);
 }

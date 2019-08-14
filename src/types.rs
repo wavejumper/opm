@@ -4,37 +4,28 @@ use std::io::BufReader;
 use std::io::prelude::*;
 use log::{info, error};
 use std::io::{Error, ErrorKind};
+use crossbeam_utils::atomic::AtomicCell;
 
-#[derive(juniper::GraphQLObject, Serialize, Deserialize, Clone)]
-#[graphql(description="A kit containing up to 24 samples")]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Sample {
     pub name: String
 }
 
-#[derive(juniper::GraphQLObject, Serialize, Deserialize, Clone)]
-#[graphql(description="A kit containing up to 24 samples")]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Kit {
     pub name: String,
     pub dir_name: String,
     pub samples: Vec<Sample>
 }
 
-pub type Kits = Vec<Kit>;
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Create a new kit")]
-pub struct NewKit {
-    pub name: String
-}
-
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Manifest {
-    kits: Kits
+    pub kits: Vec<Kit>
 }
 
 impl Manifest {
     pub fn new() -> Manifest {
-        let kits: Kits = Vec::new();
+        let kits: Vec<Kit> = Vec::new();
         let manifest = Manifest { kits };
         manifest
     }
@@ -82,15 +73,21 @@ impl Manifest {
     }
 }
 
-
 #[derive(Clone)]
 pub struct Db {
-    relative_dir: String
+    relative_dir: String,
+    manifest: Manifest
 }
 
 impl Db {
-    pub fn new(relative_dir: &str) -> Db {
-        Db { relative_dir: String::from(relative_dir) }
+    pub fn new(relative_dir: &str) -> Result<Self, std::io::Error> {
+        let manifest = Manifest::open(relative_dir)?;
+        let db = Db { relative_dir: String::from(relative_dir), manifest: manifest };
+        Ok(db)
+    }
+
+    pub fn read(self) -> Manifest {
+        self.manifest
     }
 
     pub fn commit(&mut self, manifest: Manifest) -> std::io::Result<()> {
@@ -100,6 +97,7 @@ impl Db {
         match serde_json::to_string(&manifest) {
             Ok(json_str) => {
                 file.write_all(json_str.as_bytes())?;
+                self.manifest = manifest;
                 Ok(())
             },
             Err(_) => {
@@ -108,5 +106,20 @@ impl Db {
                 Err(err)
             }
         }
+    }
+}
+
+pub struct Context {
+    pub sample_dir: String,
+    pub db: AtomicCell<Db>,
+}
+
+impl Context {
+    pub fn new(dir: &str) -> Result<Self, std::io::Error> {
+        let dir_string = String::from(dir);
+        let db = Db::new(dir)?;
+        let db_cell = AtomicCell::new(db);
+        let context = Context { sample_dir: dir_string, db: db_cell };
+        Ok(context)
     }
 }
