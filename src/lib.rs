@@ -3,7 +3,7 @@ mod types;
 mod logging;
 
 use std::thread;
-use actix_web::{http::header, middleware, App, HttpServer};
+use actix_web::{middleware, App, HttpServer};
 use types::{Context};
 use logging::{PdLogger};
 use log::{info, LevelFilter};

@@ -12,7 +12,7 @@ serde = "1.0.98"
 serde_json = "1.0.40"
 serde_derive = "1.0.98"
 crossbeam-utils = "0.6.6"
-log = { version = "0.4.8", features = ["std", "serde"] }
+log = { version = "0.4.8"}
 
 [lib]
 name = "opm"
