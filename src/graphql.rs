@@ -1,33 +1,27 @@
 use juniper::{FieldResult};
-
-#[derive(juniper::GraphQLObject)]
-#[graphql(description="A kit containing up to 24 samples")]
-pub struct Sample {
-    pub name: String
-}
-
-#[derive(juniper::GraphQLObject)]
-#[graphql(description="A kit containing up to 24 samples")]
-pub struct Kit {
-    pub name: String,
-    pub dir_name: String,
-    pub samples: Vec<Sample>
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "A humanoid creature in the Star Wars universe")]
-pub struct NewKit {
-    pub name: String
-}
+use super::types::{Manifest, Kit, Sample, NewKit};
+use crossbeam_utils::atomic::AtomicCell;
+use std::sync::Arc;
+use crossbeam::channel::Sender;
 
 #[derive(Clone)]
 pub struct Context {
-    pub sample_dir: String
+    pub sample_dir: String,
+    pub manifest: Arc<AtomicCell<Manifest>>,
+    pub db_sender: Sender<Manifest>
 }
 
 impl juniper::Context for Context {}
 
 pub struct Query;
+
+fn resolve_kit(id: &String) -> Option<Kit> {
+    let samples: Vec<Sample> = Vec::new();
+    let kit_name = id.clone();
+    let dir_name = id.clone();
+    let kit = Kit { name: kit_name, dir_name: dir_name, samples: samples };
+    Some(kit)
+}
 
 graphql_object!(Query: Context |&self| {
 
@@ -37,11 +31,11 @@ graphql_object!(Query: Context |&self| {
 
     // Arguments to resolvers can either be simple types or input objects.
     // The executor is a special (optional) argument that allows accessing the context.
-    field kit(&executor, id: String) -> FieldResult<Kit> {
-        let samples: Vec<Sample> = Vec::new();
-        let dir_name = id.clone();
-        let kit = Kit { name: id, dir_name: dir_name, samples: samples };
-        Ok(kit)
+    field kit(&executor, id: String) -> FieldResult<Option<Kit>> {
+        let ctx = executor.context();
+        let manifest = ctx.manifest.clone();
+
+        Ok(resolve_kit(&id))
     }
 });
 

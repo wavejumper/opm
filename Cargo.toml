@@ -15,6 +15,9 @@ futures = "0.1.28"
 serde = "1.0.98"
 serde_json = "1.0.40"
 serde_derive = "1.0.98"
+crossbeam-utils = "0.6.6"
+crossbeam = "0.7.2"
+log = { version = "0.4.8", features = ["std", "serde"] }
 
 [lib]
 name = "opm"

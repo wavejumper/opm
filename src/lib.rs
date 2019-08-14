@@ -3,6 +3,8 @@ extern crate pd_external_rs;
 
 mod ffi;
 mod graphql;
+mod types;
+mod logging;
 
 use std::sync::Arc;
 use std::thread;
@@ -11,7 +13,12 @@ use actix_web::{http::header, middleware, web, App, Error, HttpResponse, HttpSer
 use actix_cors::Cors;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-
+use types::{Db, Manifest};
+use crossbeam::crossbeam_channel::bounded;
+use crossbeam_utils::atomic::AtomicCell;
+use crossbeam::channel::Sender;
+use logging::{PdLogger};
+use log::{info, LevelFilter};
 use crate::graphql::{create_schema, Schema, Context};
 
 fn graphiql() -> HttpResponse {
@@ -28,11 +35,13 @@ struct State {
 }
 
 impl State {
-    fn new(dir: &str) -> Self {
+    fn new(dir: &str, sender: Sender<Manifest>) -> Result<Self, std::io::Error> {
         let dir_string = String::from(dir);
         let schema = std::sync::Arc::new(create_schema());
-        let context = Context { sample_dir: dir_string };
-        State { schema, context }
+        let manifest = Manifest::open(dir)?;
+        let manifest_arc = Arc::new(AtomicCell::new(manifest));
+        let context = Context { sample_dir: dir_string, manifest: manifest_arc, db_sender: sender };
+        Ok(State { schema, context })
     }
 }
 
@@ -54,10 +63,38 @@ fn graphql(
 
 #[no_mangle]
 pub unsafe extern "C" fn hello_rust() {
-    ffi::post("Starting server on port 9000 :)");
+    static LOGGER: PdLogger = PdLogger;
+
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(LevelFilter::Info))
+        .expect("Log configuration failed...");
+
+    info!("Starting server on port 9000 :)");
+
+    let (s, r) = bounded(5);
+    let state = State::new("/home/tscrowley/samples", s).unwrap();
 
     thread::spawn(move || {
-        let state = State::new("/home/tscrowley/samples");
+        let mut db = Db::new("/home/tscrowley/samples");
+        loop {
+            match r.recv() {
+                Ok(manifest) => {
+                    match db.commit(manifest) {
+                        Ok(_) => (),
+                        Err(_) => {
+                            info!("Failed to commit, shutting down stream...");
+                            break;
+                        }
+                    };
+                },
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+    });
+
+    thread::spawn(move || {
         HttpServer::new(move || {
             App::new()
                 .wrap(
