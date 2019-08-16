@@ -1,9 +1,14 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
-use log::{info, error};
-use std::io::{Error, ErrorKind};
+use log::{debug, info, error};
+use std::io::ErrorKind;
 use std::fs;
+use iron::prelude::*;
+use iron::{AfterMiddleware, BeforeMiddleware};
+use iron::error::IronError;
+use std::error::Error;
+use std::fmt;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Sample {
@@ -37,7 +42,7 @@ impl Manifest {
             Ok(manifest) => Ok(manifest),
             Err(_) => {
                 error!("manifest.json corrupted!");
-                let err = Error::new(ErrorKind::InvalidData, "Corrupted manifest.json");
+                let err = std::io::Error::new(ErrorKind::InvalidData, "Corrupted manifest.json");
                 Err(err)
             }
         }
@@ -56,7 +61,7 @@ impl Manifest {
             },
             Err(_) => {
                 error!("Failed to init {}/manifest.json", relative_dir);
-                let err = Error::new(ErrorKind::InvalidData, "Failed to init manifest.json");
+                let err = std::io::Error::new(ErrorKind::InvalidData, "Failed to init manifest.json");
                 Err(err)
             }
         }
@@ -78,24 +83,24 @@ pub struct Db {
 }
 
 impl Db {
-    pub fn tx_init(&self) -> std::io::Result<()> {
-        let manifest_lock = format!("{}/.manifest.json.lock", self.relative_dir);
-        File::create(manifest_lock)?;
-        Ok(())
+    fn lock_file(&self) -> String {
+        format!("{}/mainfest.json.lock", self.relative_dir)
     }
 
     pub fn aquire_lock(&self) -> std::io::Result<()> {
-        let manifest_lock = format!("{}/.manifest.json.lock", self.relative_dir);
-        while let Err(_) = File::open(manifest_lock.as_str()) {
-            info!("Attempting to aquire lock...");
+        debug!("Aquring lock");
+        if fs::metadata(self.lock_file().as_str()).is_ok() {
+            let err = std::io::Error::new(std::io::ErrorKind::AlreadyExists, "lock already exists");
+            Err(err)
+        } else {
+            File::create(self.lock_file())?;
+            Ok(())
         }
-        info!("Lock aquired...");
-        self.tx_init()
     }
 
-    pub fn tx_close(&self) -> std::io::Result<()> {
-        let manifest_lock = format!("{}/.manifest.json.lock", self.relative_dir);
-        fs::remove_file(manifest_lock)?;
+    pub fn release_lock(&self) -> std::io::Result<()> {
+        debug!("Releasing lock");
+        fs::remove_file(self.lock_file())?;
         Ok(())
     }
 
@@ -121,9 +126,61 @@ impl Db {
             },
             Err(_) => {
                 error!("Failed to commit to manifest...");
-                let err = Error::new(ErrorKind::InvalidData, "Failed to serialize manifest");
+                let err = std::io::Error::new(ErrorKind::InvalidData, "Failed to serialize manifest");
                 Err(err)
             }
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct LockAcquisitionError;
+
+impl fmt::Display for LockAcquisitionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Failed to aquire lock.")
+    }
+}
+
+impl Error for LockAcquisitionError {
+    fn description(&self) -> &str { "Failed to aquire lock." }
+}
+
+impl BeforeMiddleware for Db {
+    fn before(&self, req: &mut Request) -> IronResult<()> {
+        match req.method {
+            iron::method::Post => {
+                match self.aquire_lock() {
+                    Ok(_) => Ok(()),
+                    Err(_) => {
+                        let err = IronError::new(LockAcquisitionError, iron::status::InternalServerError);
+                        Err(err)
+                    }
+                }
+            },
+            _ => Ok(())
+        }
+    }
+}
+
+impl AfterMiddleware for Db {
+    fn after(&self, req: &mut Request, res: Response) -> IronResult<Response> {
+        match req.method {
+            iron::method::Post => {
+                self.release_lock().unwrap();
+                Ok(res)
+            },
+            _ => Ok(res)
+        }
+    }
+
+    fn catch(&self, req: &mut Request, err: IronError) -> IronResult<Response> {
+        if req.method == iron::method::Post && !err.error.is::<LockAcquisitionError>() {
+            match self.release_lock() {
+                _ => ()
+            };
+        };
+
+        Err(err)
     }
 }
