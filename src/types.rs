@@ -1,24 +1,23 @@
-use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
 use log::{info, error};
 use std::io::{Error, ErrorKind};
-use crossbeam_utils::atomic::AtomicCell;
+use std::fs;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Sample {
     pub name: String
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize,Clone)]
 pub struct Kit {
     pub name: String,
     pub dir_name: String,
     pub samples: Vec<Sample>
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize,Clone)]
 pub struct Manifest {
     pub kits: Vec<Kit>
 }
@@ -75,29 +74,49 @@ impl Manifest {
 
 #[derive(Clone)]
 pub struct Db {
-    relative_dir: String,
-    manifest: Manifest
+    relative_dir: String
 }
 
 impl Db {
+    pub fn tx_init(&self) -> std::io::Result<()> {
+        let manifest_lock = format!("{}/.manifest.json.lock", self.relative_dir);
+        File::create(manifest_lock)?;
+        Ok(())
+    }
+
+    pub fn aquire_lock(&self) -> std::io::Result<()> {
+        let manifest_lock = format!("{}/.manifest.json.lock", self.relative_dir);
+        while let Err(_) = File::open(manifest_lock.as_str()) {
+            info!("Attempting to aquire lock...");
+        }
+        info!("Lock aquired...");
+        self.tx_init()
+    }
+
+    pub fn tx_close(&self) -> std::io::Result<()> {
+        let manifest_lock = format!("{}/.manifest.json.lock", self.relative_dir);
+        fs::remove_file(manifest_lock)?;
+        Ok(())
+    }
+
     pub fn new(relative_dir: &str) -> Result<Self, std::io::Error> {
-        let manifest = Manifest::open(relative_dir)?;
-        let db = Db { relative_dir: String::from(relative_dir), manifest: manifest };
+        let manifest_file = format!("{}/manifest.json", relative_dir);
+        File::open(manifest_file)?;
+        let db = Db { relative_dir: String::from(relative_dir) };
         Ok(db)
     }
 
-    pub fn read(self) -> Manifest {
-        self.manifest
+    pub fn read(&self) -> Result<Manifest, std::io::Error> {
+        Manifest::open(self.relative_dir.as_str())
     }
 
-    pub fn commit(&mut self, manifest: Manifest) -> std::io::Result<()> {
+    fn commit(&self, manifest: &Manifest) -> std::io::Result<()> {
         info!("Comitting to manifest...");
         let path = format!("{}/manifest.json", self.relative_dir);
         let mut file = File::open(path)?;
-        match serde_json::to_string(&manifest) {
+        match serde_json::to_string(manifest) {
             Ok(json_str) => {
                 file.write_all(json_str.as_bytes())?;
-                self.manifest = manifest;
                 Ok(())
             },
             Err(_) => {
@@ -106,20 +125,5 @@ impl Db {
                 Err(err)
             }
         }
-    }
-}
-
-pub struct Context {
-    pub sample_dir: String,
-    pub db: AtomicCell<Db>,
-}
-
-impl Context {
-    pub fn new(dir: &str) -> Result<Self, std::io::Error> {
-        let dir_string = String::from(dir);
-        let db = Db::new(dir)?;
-        let db_cell = AtomicCell::new(db);
-        let context = Context { sample_dir: dir_string, db: db_cell };
-        Ok(context)
     }
 }
