@@ -16,10 +16,7 @@ use logging::{PdLogger};
 use log::{info, LevelFilter};
 use iron::prelude::*;
 use router::Router;
-
-fn hello_world(_: &mut Request) -> IronResult<Response> {
-    Ok(Response::with((iron::status::Ok, "Hello World")))
-}
+use http::{HTTPController, HTTPResponder};
 
 #[no_mangle]
 pub unsafe extern "C" fn hello_rust() {
@@ -34,12 +31,12 @@ pub unsafe extern "C" fn hello_rust() {
         let db = Db::new("/home/tscrowley/samples").unwrap();
 
         let mut router = Router::new();
-        router.get("/", hello_world, "index");
-        router.post("/", hello_world, "foo");
+        router.get("/kits", move |_: &mut Request| db.get_kits().unwrap_response(), "get_kits");
+        router.post("/kits", move |_: &mut Request| db.get_kits().unwrap_response(), "post_kits");
 
         let mut chain = Chain::new(router);
-        chain.link_before(db.clone());
-        chain.link_after(db.clone());
+        chain.link_before(db);
+        chain.link_after(db);
 
         Iron::new(chain).http("localhost:9000").unwrap();
     });

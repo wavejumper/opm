@@ -15,16 +15,20 @@ pub struct Sample {
     pub name: String
 }
 
+pub type Samples = Vec<Sample>;
+
 #[derive(Serialize, Deserialize,Clone)]
 pub struct Kit {
     pub name: String,
     pub dir_name: String,
-    pub samples: Vec<Sample>
+    pub samples: Samples
 }
+
+pub type Kits = Vec<Kit>;
 
 #[derive(Serialize, Deserialize,Clone)]
 pub struct Manifest {
-    pub kits: Vec<Kit>
+    pub kits: Kits
 }
 
 impl Manifest {
@@ -68,7 +72,7 @@ impl Manifest {
     }
 
     pub fn open(relative_dir: &str) -> std::io::Result<Manifest> {
-        info!("Opening {}/manifest.json", relative_dir);
+        debug!("Opening {}/manifest.json", relative_dir);
         let manifest = format!("{}/manifest.json", relative_dir);
         match File::open(manifest) {
             Ok(file) => Manifest::read(file),
@@ -77,9 +81,9 @@ impl Manifest {
     }
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Db {
-    relative_dir: String
+    relative_dir: &'static str
 }
 
 impl Db {
@@ -104,15 +108,15 @@ impl Db {
         Ok(())
     }
 
-    pub fn new(relative_dir: &str) -> Result<Self, std::io::Error> {
+    pub fn new(relative_dir: &'static str) -> Result<Self, std::io::Error> {
         let manifest_file = format!("{}/manifest.json", relative_dir);
         File::open(manifest_file)?;
-        let db = Db { relative_dir: String::from(relative_dir) };
+        let db = Db { relative_dir: relative_dir };
         Ok(db)
     }
 
     pub fn read(&self) -> Result<Manifest, std::io::Error> {
-        Manifest::open(self.relative_dir.as_str())
+        Manifest::open(self.relative_dir)
     }
 
     fn commit(&self, manifest: &Manifest) -> std::io::Result<()> {
