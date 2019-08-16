@@ -9,6 +9,8 @@ use iron::{AfterMiddleware, BeforeMiddleware};
 use iron::error::IronError;
 use std::error::Error;
 use std::fmt;
+use std::path::PathBuf;
+use std::ffi::OsString;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Sample {
@@ -31,14 +33,24 @@ pub struct Manifest {
     pub kits: Kits
 }
 
+fn ffi_to_string(s: OsString) -> std::io::Result<String> {
+    match s.into_string() {
+        Ok(s) => Ok(s),
+        Err(_) => {
+            let err = std::io::Error::new(std::io::ErrorKind::InvalidData, "Cannot parse OsString");
+            Err(err)
+        }
+    }
+}
+
 impl Manifest {
-    pub fn new() -> Manifest {
+    fn new() -> Manifest {
         let kits: Vec<Kit> = Vec::new();
         let manifest = Manifest { kits };
         manifest
     }
 
-    pub fn read(file: File) -> std::io::Result<Manifest> {
+    fn read(file: File) -> std::io::Result<Manifest> {
         let mut buf_reader = BufReader::new(file);
         let mut contents = String::new();
         buf_reader.read_to_string(&mut contents)?;
@@ -52,9 +64,36 @@ impl Manifest {
         }
     }
 
-    pub fn init(relative_dir: &str) -> std::io::Result<Manifest> {
+    fn resolve_samples(path: PathBuf) -> std::io::Result<Samples> {
+        let mut samples = Vec::new();
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let file_name = ffi_to_string(entry.file_name())?;
+            let sample = Sample { name: file_name };
+            samples.push(sample);
+        };
+
+        Ok(samples)
+    }
+
+    fn resolve_kits(&mut self, relative_dir: &str) -> std::io::Result<()> {
+        for entry in fs::read_dir(relative_dir)? {
+            let entry = entry?;
+            let dir_name = ffi_to_string(entry.path().into_os_string())?;
+            let name = dir_name.clone();
+            let samples = Manifest::resolve_samples(entry.path())?;
+            let kit = Kit { dir_name, samples, name };
+            self.kits.push(kit);
+        };
+
+        Ok(())
+    }
+
+    fn init(relative_dir: &str) -> std::io::Result<Manifest> {
         info!("{}/manifest.json not found, creating...", relative_dir);
-        let manifest = Manifest::new();
+        let mut manifest = Manifest::new();
+        manifest.resolve_kits(relative_dir)?;
+
         let manifest_file_path = format!("{}/manifest.json", relative_dir);
         let mut file = File::create(manifest_file_path)?;
         match serde_json::to_string(&manifest) {
@@ -109,8 +148,7 @@ impl Db {
     }
 
     pub fn new(relative_dir: &'static str) -> Result<Self, std::io::Error> {
-        let manifest_file = format!("{}/manifest.json", relative_dir);
-        File::open(manifest_file)?;
+        Manifest::open(relative_dir)?;
         let db = Db { relative_dir: relative_dir };
         Ok(db)
     }
