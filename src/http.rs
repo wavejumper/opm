@@ -2,23 +2,7 @@ use crate::types::{Db, Manifest, Kit, Kits};
 use iron::prelude::*;
 use iron::error::IronError;
 use router::Router;
-use std::error::Error;
-use std::fmt;
-
-#[derive(Debug)]
-pub struct IronConfigurationError;
-
-impl fmt::Display for IronConfigurationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Iron misconfigured!")
-    }
-}
-
-impl Error for IronConfigurationError {
-    fn description(&self) -> &str {
-        "Iron Misconfigured"
-    }
-}
+use crate::errors::{ResourceNotFound, IronConfigurationError};
 
 pub fn extract_query(req: &Request, query: &str) -> IronResult<String> {
     match req.extensions.get::<Router>() {
@@ -92,7 +76,7 @@ impl HTTPController for Db {
         match manifest.kits.get(kit_id) {
             Some(kit) => Ok(kit.clone()),
             None => {
-                let err = IronError::new(IronConfigurationError, iron::status::InternalServerError);
+                let err = IronError::new(ResourceNotFound, iron::status::NotFound);
                 Err(err)
             }
         }

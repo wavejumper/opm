@@ -7,11 +7,10 @@ use std::fs;
 use iron::prelude::*;
 use iron::{AfterMiddleware, BeforeMiddleware};
 use iron::error::IronError;
-use std::error::Error;
-use std::fmt;
 use std::path::PathBuf;
 use std::ffi::OsString;
 use std::collections::HashMap;
+use crate::errors::{LockAcquisitionError};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Sample {
@@ -176,19 +175,6 @@ impl Db {
             }
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct LockAcquisitionError;
-
-impl fmt::Display for LockAcquisitionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("Failed to aquire lock.")
-    }
-}
-
-impl Error for LockAcquisitionError {
-    fn description(&self) -> &str { "Failed to aquire lock." }
 }
 
 impl BeforeMiddleware for Db {

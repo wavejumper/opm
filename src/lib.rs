@@ -9,6 +9,7 @@ mod ffi;
 mod types;
 mod logging;
 mod http;
+mod errors;
 
 use std::thread;
 use types::Db;
