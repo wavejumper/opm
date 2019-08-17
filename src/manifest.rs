@@ -129,7 +129,7 @@ impl Manifest {
 
 #[derive(Copy, Clone)]
 pub struct Db {
-    relative_dir: &'static str,
+    pub relative_dir: &'static str,
 }
 
 impl Db {
