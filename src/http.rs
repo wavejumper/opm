@@ -1,4 +1,4 @@
-use crate::types::{Db, Manifest, Kit, Kits};
+use crate::types::{Db, Manifest, Sample, Kit, Kits};
 use iron::prelude::*;
 use iron::error::IronError;
 use router::Router;
@@ -53,6 +53,7 @@ impl<T: serde::Serialize> HTTPResponder for IronResult<T> {
 pub trait HTTPController {
     fn get_kits(&self) -> IronResult<Kits>;
     fn get_kit(&self, kit_id: &String) -> IronResult<Kit>;
+    fn get_sample(&self, kit_id: &String, sample_id: &String) -> IronResult<Sample>;
 }
 
 fn read_manifest(db: &Db) -> IronResult<Manifest> {
@@ -81,6 +82,17 @@ impl HTTPController for Db {
             }
         }
     }
+
+    fn get_sample(&self, kit_id: &String, sample_id: &String) -> IronResult<Sample> {
+        let kit = self.get_kit(kit_id)?;
+        match kit.samples.get(sample_id) {
+            Some(sample) => Ok(sample.clone()),
+            None => {
+                let err = IronError::new(ResourceNotFound, iron::status::NotFound);
+                Err(err)
+            }
+        }
+    }
 }
 
 pub fn app_routes(db: Db) -> Router {
@@ -92,6 +104,13 @@ pub fn app_routes(db: Db) -> Router {
         let kit_id = extract_query(req,"kit-id")?;
         db.get_kit(&kit_id).unwrap_response()
     }, "get_kit");
+
+    router.get("/kits/:kit-id/samples/:sample-id", move | req: &mut Request |{
+        let kit_id = extract_query(req,"kit-id")?;
+        let sample_id = extract_query(req,"sample-id")?;
+        let sample_id = format!("{}.wav", sample_id);
+        db.get_sample(&kit_id, &sample_id).unwrap_response()
+    }, "get-sample");
 
     router
 }
