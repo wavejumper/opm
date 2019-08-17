@@ -82,3 +82,16 @@ impl HTTPController for Db {
         }
     }
 }
+
+pub fn app_routes(db: Db) -> Router {
+    let mut router = Router::new();
+    router.get("/kits", move |_: &mut Request| db.get_kits().unwrap_response(), "get_kits");
+    router.post("/kits", move |_: &mut Request| db.get_kits().unwrap_response(), "post_kits");
+
+    router.get("/kits/:kit-id", move | req: &mut Request |  {
+        let kit_id = extract_query(req,"kit-id")?;
+        db.get_kit(&kit_id).unwrap_response()
+    }, "get_kit");
+
+    router
+}
