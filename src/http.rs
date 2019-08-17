@@ -1,4 +1,4 @@
-use crate::types::{Db, Manifest, Sample, Kit, Kits};
+use crate::manifest::{Db, Manifest, Sample, Kit, Kits};
 use iron::prelude::*;
 use iron::error::IronError;
 use router::Router;

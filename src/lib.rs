@@ -6,13 +6,13 @@ extern crate serde_json;
 extern crate serde_derive;
 
 mod ffi;
-mod types;
+mod manifest;
 mod logging;
 mod http;
 mod errors;
 
 use std::thread;
-use types::Db;
+use manifest::Db;
 use logging::{PdLogger};
 use log::{info, LevelFilter};
 use iron::prelude::*;

@@ -27,6 +27,7 @@ pub struct Kit {
 }
 
 pub type Kits = HashMap<String, Kit>;
+pub type KitIds = Vec<String>;
 
 #[derive(Serialize, Deserialize,Clone)]
 pub struct Manifest {
