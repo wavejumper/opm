@@ -26,12 +26,12 @@ pub unsafe extern "C" fn hello_rust() {
         .expect("Log configuration failed...");
 
     thread::spawn(move || {
-        info!("Starting server on port 9000");
+        info!("Starting server at 0.0.0.0:9000");
         let db = Db::new("/home/tscrowley/samples").unwrap();
         let router = http::app_routes(db);
         let mut chain = Chain::new(router);
         chain.link_before(db);
         chain.link_after(db);
-        Iron::new(chain).http("localhost:9000").unwrap();
+        Iron::new(chain).http("0.0.0.0:9000").unwrap();
     });
 }
