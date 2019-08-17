@@ -34,6 +34,11 @@ pub unsafe extern "C" fn hello_rust() {
         router.get("/kits", move |_: &mut Request| db.get_kits().unwrap_response(), "get_kits");
         router.post("/kits", move |_: &mut Request| db.get_kits().unwrap_response(), "post_kits");
 
+        router.get("/kits/:kit-id", move | req: &mut Request |  {
+            let kit_id = http::extract_query(req,"kit-id")?;
+            db.get_kit(&kit_id).unwrap_response()
+        }, "get_kit");
+
         let mut chain = Chain::new(router);
         chain.link_before(db);
         chain.link_after(db);

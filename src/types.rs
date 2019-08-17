@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
-use log::{debug, info, error};
+use log::{debug, info, error, warn};
 use std::io::ErrorKind;
 use std::fs;
 use iron::prelude::*;
@@ -11,13 +11,14 @@ use std::error::Error;
 use std::fmt;
 use std::path::PathBuf;
 use std::ffi::OsString;
+use std::collections::HashMap;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Sample {
     pub name: String
 }
 
-pub type Samples = Vec<Sample>;
+pub type Samples = HashMap<String, Sample>;
 
 #[derive(Serialize, Deserialize,Clone)]
 pub struct Kit {
@@ -26,7 +27,7 @@ pub struct Kit {
     pub samples: Samples
 }
 
-pub type Kits = Vec<Kit>;
+pub type Kits = HashMap<String, Kit>;
 
 #[derive(Serialize, Deserialize,Clone)]
 pub struct Manifest {
@@ -45,7 +46,7 @@ fn ffi_to_string(s: OsString) -> std::io::Result<String> {
 
 impl Manifest {
     fn new() -> Manifest {
-        let kits: Vec<Kit> = Vec::new();
+        let kits: Kits = Kits::new();
         let manifest = Manifest { kits };
         manifest
     }
@@ -65,12 +66,13 @@ impl Manifest {
     }
 
     fn resolve_samples(path: PathBuf) -> std::io::Result<Samples> {
-        let mut samples = Vec::new();
+        let mut samples = Samples::new();
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let file_name = ffi_to_string(entry.file_name())?;
+            let k = file_name.clone();
             let sample = Sample { name: file_name };
-            samples.push(sample);
+            samples.insert(k, sample);
         };
 
         Ok(samples)
@@ -80,10 +82,11 @@ impl Manifest {
         for entry in fs::read_dir(relative_dir)? {
             let entry = entry?;
             let dir_name = ffi_to_string(entry.path().into_os_string())?;
-            let name = dir_name.clone();
+            let name = ffi_to_string(entry.file_name().to_os_string())?;
+            let k = name.clone();
             let samples = Manifest::resolve_samples(entry.path())?;
             let kit = Kit { dir_name, samples, name };
-            self.kits.push(kit);
+            self.kits.insert(k, kit);
         };
 
         Ok(())
@@ -209,8 +212,14 @@ impl AfterMiddleware for Db {
     fn after(&self, req: &mut Request, res: Response) -> IronResult<Response> {
         match req.method {
             iron::method::Post => {
-                self.release_lock().unwrap();
-                Ok(res)
+                match self.release_lock() {
+                    Ok(_) => Ok(res),
+                    Err(_) => {
+                        warn!("Failed to release lock");
+                        let err = IronError::new(LockAcquisitionError, iron::status::InternalServerError);
+                        Err(err)
+                    }
+                }
             },
             _ => Ok(res)
         }
