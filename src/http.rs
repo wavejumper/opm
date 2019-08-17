@@ -1,11 +1,11 @@
 use crate::errors::{IronConfigurationError, ResourceNotFound};
 use crate::manifest::{Db, Kit, Kits, Manifest, Sample};
 use iron::error::IronError;
-use iron::prelude::*;
 use iron::mime;
+use iron::prelude::*;
 use router::Router;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
 
 pub fn extract_query(req: &Request, query: &str) -> IronResult<String> {
     match req.extensions.get::<Router>() {
@@ -31,7 +31,7 @@ pub trait HTTPResponder {
 }
 
 pub struct WavFile {
-    bytes: Vec<u8>
+    bytes: Vec<u8>,
 }
 
 impl WavFile {
@@ -128,13 +128,14 @@ impl HTTPController for Db {
                     Ok(_) => {
                         let wav_file = WavFile::new(buffer);
                         Ok(wav_file)
-                    },
+                    }
                     Err(_) => {
-                        let err = IronError::new(ResourceNotFound, iron::status::InternalServerError);
+                        let err =
+                            IronError::new(ResourceNotFound, iron::status::InternalServerError);
                         Err(err)
                     }
                 }
-            },
+            }
             Err(_) => {
                 let err = IronError::new(ResourceNotFound, iron::status::NotFound);
                 Err(err)
