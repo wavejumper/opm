@@ -1,5 +1,5 @@
-use log::{Record, Level, Metadata};
 use crate::ffi;
+use log::{Level, Metadata, Record};
 use std::ffi::CString;
 
 pub struct PdLogger;

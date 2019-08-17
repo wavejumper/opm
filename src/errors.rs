@@ -41,5 +41,7 @@ impl fmt::Display for LockAcquisitionError {
 }
 
 impl Error for LockAcquisitionError {
-    fn description(&self) -> &str { "Failed to aquire lock." }
+    fn description(&self) -> &str {
+        "Failed to aquire lock."
+    }
 }

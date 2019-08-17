@@ -5,17 +5,17 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
-mod ffi;
-mod manifest;
-mod logging;
-mod http;
 mod errors;
+mod ffi;
+mod http;
+mod logging;
+mod manifest;
 
-use std::thread;
-use manifest::Db;
-use logging::{PdLogger};
-use log::{info, LevelFilter};
 use iron::prelude::*;
+use log::{info, LevelFilter};
+use logging::PdLogger;
+use manifest::Db;
+use std::thread;
 
 #[no_mangle]
 pub unsafe extern "C" fn hello_rust() {

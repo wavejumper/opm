@@ -1,37 +1,36 @@
-use std::fs::File;
-use std::io::BufReader;
-use std::io::prelude::*;
-use log::{debug, info, error, warn};
-use std::io::ErrorKind;
-use std::fs;
+use crate::errors::LockAcquisitionError;
+use iron::error::IronError;
 use iron::prelude::*;
 use iron::{AfterMiddleware, BeforeMiddleware};
-use iron::error::IronError;
-use std::path::PathBuf;
-use std::ffi::OsString;
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
-use crate::errors::{LockAcquisitionError};
+use std::ffi::OsString;
+use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::io::ErrorKind;
+use std::path::PathBuf;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Sample {
-    pub name: String
+    pub name: String,
 }
 
 pub type Samples = HashMap<String, Sample>;
 
-#[derive(Serialize, Deserialize,Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Kit {
     pub name: String,
     pub dir_name: String,
-    pub samples: Samples
+    pub samples: Samples,
 }
 
 pub type Kits = HashMap<String, Kit>;
-pub type KitIds = Vec<String>;
 
-#[derive(Serialize, Deserialize,Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Manifest {
-    pub kits: Kits
+    pub kits: Kits,
 }
 
 fn ffi_to_string(s: OsString) -> std::io::Result<String> {
@@ -73,7 +72,7 @@ impl Manifest {
             let k = file_name.clone();
             let sample = Sample { name: file_name };
             samples.insert(k, sample);
-        };
+        }
 
         Ok(samples)
     }
@@ -85,9 +84,13 @@ impl Manifest {
             let name = ffi_to_string(entry.file_name().to_os_string())?;
             let k = name.clone();
             let samples = Manifest::resolve_samples(entry.path())?;
-            let kit = Kit { dir_name, samples, name };
+            let kit = Kit {
+                dir_name,
+                samples,
+                name,
+            };
             self.kits.insert(k, kit);
-        };
+        }
 
         Ok(())
     }
@@ -104,10 +107,11 @@ impl Manifest {
                 info!("{}/manifest.json created!", relative_dir);
                 file.write_all(json_str.as_bytes())?;
                 Ok(manifest)
-            },
+            }
             Err(_) => {
                 error!("Failed to init {}/manifest.json", relative_dir);
-                let err = std::io::Error::new(ErrorKind::InvalidData, "Failed to init manifest.json");
+                let err =
+                    std::io::Error::new(ErrorKind::InvalidData, "Failed to init manifest.json");
                 Err(err)
             }
         }
@@ -118,14 +122,14 @@ impl Manifest {
         let manifest = format!("{}/manifest.json", relative_dir);
         match File::open(manifest) {
             Ok(file) => Manifest::read(file),
-            Err(_) => Manifest::init(relative_dir)
+            Err(_) => Manifest::init(relative_dir),
         }
     }
 }
 
 #[derive(Copy, Clone)]
 pub struct Db {
-    relative_dir: &'static str
+    relative_dir: &'static str,
 }
 
 impl Db {
@@ -152,7 +156,9 @@ impl Db {
 
     pub fn new(relative_dir: &'static str) -> Result<Self, std::io::Error> {
         Manifest::open(relative_dir)?;
-        let db = Db { relative_dir: relative_dir };
+        let db = Db {
+            relative_dir: relative_dir,
+        };
         Ok(db)
     }
 
@@ -168,10 +174,11 @@ impl Db {
             Ok(json_str) => {
                 file.write_all(json_str.as_bytes())?;
                 Ok(())
-            },
+            }
             Err(_) => {
                 error!("Failed to commit to manifest...");
-                let err = std::io::Error::new(ErrorKind::InvalidData, "Failed to serialize manifest");
+                let err =
+                    std::io::Error::new(ErrorKind::InvalidData, "Failed to serialize manifest");
                 Err(err)
             }
         }
@@ -181,16 +188,15 @@ impl Db {
 impl BeforeMiddleware for Db {
     fn before(&self, req: &mut Request) -> IronResult<()> {
         match req.method {
-            iron::method::Post => {
-                match self.aquire_lock() {
-                    Ok(_) => Ok(()),
-                    Err(_) => {
-                        let err = IronError::new(LockAcquisitionError, iron::status::InternalServerError);
-                        Err(err)
-                    }
+            iron::method::Post => match self.aquire_lock() {
+                Ok(_) => Ok(()),
+                Err(_) => {
+                    let err =
+                        IronError::new(LockAcquisitionError, iron::status::InternalServerError);
+                    Err(err)
                 }
             },
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 }
@@ -198,24 +204,23 @@ impl BeforeMiddleware for Db {
 impl AfterMiddleware for Db {
     fn after(&self, req: &mut Request, res: Response) -> IronResult<Response> {
         match req.method {
-            iron::method::Post => {
-                match self.release_lock() {
-                    Ok(_) => Ok(res),
-                    Err(_) => {
-                        warn!("Failed to release lock");
-                        let err = IronError::new(LockAcquisitionError, iron::status::InternalServerError);
-                        Err(err)
-                    }
+            iron::method::Post => match self.release_lock() {
+                Ok(_) => Ok(res),
+                Err(_) => {
+                    warn!("Failed to release lock");
+                    let err =
+                        IronError::new(LockAcquisitionError, iron::status::InternalServerError);
+                    Err(err)
                 }
             },
-            _ => Ok(res)
+            _ => Ok(res),
         }
     }
 
     fn catch(&self, req: &mut Request, err: IronError) -> IronResult<Response> {
         if req.method == iron::method::Post && !err.error.is::<LockAcquisitionError>() {
             match self.release_lock() {
-                _ => ()
+                _ => (),
             };
         };
 
