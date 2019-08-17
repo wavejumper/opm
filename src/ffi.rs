@@ -3,7 +3,7 @@
 
 use std::os::raw::c_char;
 
-#[link(name = "aubio")]
+#[link(name = "m_pd")]
 extern "C" {
     pub fn post(fmt: *const c_char);
 }

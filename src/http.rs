@@ -99,6 +99,7 @@ pub fn app_routes(db: Db) -> Router {
         move |_: &mut Request| db.get_kits().unwrap_response(),
         "get_kits",
     );
+
     router.post(
         "/kits",
         move |_: &mut Request| db.get_kits().unwrap_response(),
