@@ -65,15 +65,13 @@ pub struct Kit {
 fn is_valid_kit_id(s: &String) -> bool {
     match s.find('-') {
         Some(idx) => {
-            let (kit, n) = s.split_at(idx+1);
+            let (kit, n) = s.split_at(idx + 1);
             match n.parse::<u32>() {
-                Ok(id) => {
-                    kit == "kit-" && id <= 10
-                },
-                Err(_) => false
+                Ok(id) => kit == "kit-" && id <= 10,
+                Err(_) => false,
             }
-        },
-        None => false
+        }
+        None => false,
     }
 }
 
