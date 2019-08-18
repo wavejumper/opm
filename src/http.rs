@@ -118,9 +118,9 @@ impl HTTPController for Db {
         }
     }
 
-    fn play_sample(&self, kit_id: &String, sample_id: &String) -> IronResult<WavFile> {
+    fn play_sample(&self, kit_id: &String, sample_name: &String) -> IronResult<WavFile> {
         let dir = self.relative_dir;
-        let path_str = format!("{}/{}/{}", dir, kit_id, sample_id);
+        let path_str = format!("{}/{}/{}", dir, kit_id, sample_name);
         match File::open(path_str) {
             Ok(mut f) => {
                 let mut buffer = Vec::new();
@@ -172,7 +172,6 @@ pub fn app_routes(db: Db) -> Router {
         move |req: &mut Request| {
             let kit_id = extract_query(req, "kit-id")?;
             let sample_id = extract_query(req, "sample-id")?;
-            let sample_id = format!("{}.wav", sample_id);
             db.get_sample(&kit_id, &sample_id).unwrap_response()
         },
         "get-sample",
@@ -183,8 +182,8 @@ pub fn app_routes(db: Db) -> Router {
         move |req: &mut Request| {
             let kit_id = extract_query(req, "kit-id")?;
             let sample_id = extract_query(req, "sample-id")?;
-            let sample_id = format!("{}.wav", sample_id);
-            db.play_sample(&kit_id, &sample_id).unwrap_response()
+            let sample_name = format!("{}.wav", sample_id);
+            db.play_sample(&kit_id, &sample_name).unwrap_response()
         },
         "play-sample",
     );
