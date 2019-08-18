@@ -12,9 +12,45 @@ use std::io::BufReader;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
+fn ffi_to_string(s: OsString) -> std::io::Result<String> {
+    match s.into_string() {
+        Ok(s) => Ok(s),
+        Err(_) => {
+            let err = std::io::Error::new(std::io::ErrorKind::InvalidData, "Cannot parse OsString");
+            Err(err)
+        }
+    }
+}
+
+fn sample_id(s: &String) -> Option<String> {
+    match s.find(".wav") {
+        Some(idx) => {
+            let (id, _) = s.split_at(idx);
+            match id.parse::<u32>() {
+                Ok(id) => Some(id.to_string()),
+                Err(_) => None,
+            }
+        }
+        None => None,
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Sample {
     pub name: String,
+    pub id: String,
+}
+
+impl Sample {
+    pub fn new(entry: std::fs::DirEntry) -> Option<Sample> {
+        let file_name = ffi_to_string(entry.file_name()).ok()?;
+        let sample_id = sample_id(&file_name)?;
+        let sample = Sample {
+            name: file_name,
+            id: sample_id,
+        };
+        Some(sample)
+    }
 }
 
 pub type Samples = HashMap<String, Sample>;
@@ -26,23 +62,27 @@ pub struct Kit {
     pub samples: Samples,
 }
 
+fn is_valid_kit_id(s: &String) -> bool {
+    match s.find('-') {
+        Some(idx) => {
+            let (kit, n) = s.split_at(idx+1);
+            match n.parse::<u32>() {
+                Ok(id) => {
+                    kit == "kit-" && id <= 10
+                },
+                Err(_) => false
+            }
+        },
+        None => false
+    }
+}
+
 pub type Kits = HashMap<String, Kit>;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Manifest {
     pub kits: Kits,
 }
-
-fn ffi_to_string(s: OsString) -> std::io::Result<String> {
-    match s.into_string() {
-        Ok(s) => Ok(s),
-        Err(_) => {
-            let err = std::io::Error::new(std::io::ErrorKind::InvalidData, "Cannot parse OsString");
-            Err(err)
-        }
-    }
-}
-
 impl Manifest {
     fn new() -> Manifest {
         let kits: Kits = Kits::new();
@@ -65,33 +105,44 @@ impl Manifest {
     }
 
     fn resolve_samples(path: PathBuf) -> std::io::Result<Samples> {
-        let mut samples = Samples::new();
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let file_name = ffi_to_string(entry.file_name())?;
-            let k = file_name.clone();
-            let sample = Sample { name: file_name };
-            samples.insert(k, sample);
-        }
+        let entries = fs::read_dir(path)?;
+        let samples = entries
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let metadata = entry.metadata().ok()?;
+                if metadata.is_file() {
+                    Sample::new(entry)
+                } else {
+                    None
+                }
+            })
+            .map(|sample| {
+                let s = sample.clone();
+                (sample.id, s)
+            })
+            .collect();
 
         Ok(samples)
     }
 
     fn resolve_kits(&mut self, relative_dir: &str) -> std::io::Result<()> {
+        // TODO: make more functional...
         for entry in fs::read_dir(relative_dir)? {
             let entry = entry?;
+            let metadata = entry.metadata()?;
             let dir_name = ffi_to_string(entry.path().into_os_string())?;
             let name = ffi_to_string(entry.file_name().to_os_string())?;
             let k = name.clone();
-            let samples = Manifest::resolve_samples(entry.path())?;
-            let kit = Kit {
-                dir_name,
-                samples,
-                name,
-            };
-            self.kits.insert(k, kit);
+            if is_valid_kit_id(&k) && !metadata.is_file() {
+                let samples = Manifest::resolve_samples(entry.path())?;
+                let kit = Kit {
+                    dir_name,
+                    samples,
+                    name,
+                };
+                self.kits.insert(k, kit);
+            }
         }
-
         Ok(())
     }
 
@@ -129,7 +180,7 @@ impl Manifest {
 
 #[derive(Copy, Clone)]
 pub struct Db {
-    relative_dir: &'static str,
+    pub relative_dir: &'static str,
 }
 
 impl Db {
